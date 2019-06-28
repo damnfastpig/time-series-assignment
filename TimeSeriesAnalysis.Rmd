@@ -3,8 +3,8 @@ title: "TimeSeriesAnalysis"
 author: "Eugene Park, Aimin Amy Hu, Jacob Geeves"
 date: '2019-06-19'
 output:
-  word_document: default
   html_document: default
+  word_document: default
   pdf_document: default
 ---
 
