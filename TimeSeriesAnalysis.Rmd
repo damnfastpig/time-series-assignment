@@ -643,18 +643,15 @@ lines(ts(tshum2))
 
 ##Deployment Discussion
 
-* Due to time contraint and lack of understanding in all of time series model algorithms, this project has only demonstrated the usage of ARIMA model. However, both Auto ARIMA and Manual ARIMA are tested  for improved accuracy, ACF and PACF results are examined to utilized manual ARIMA fitting. 
+* Due to time contraint and lack of understanding in all of time series model algorithms, this project has only demonstrated the usage of ARIMA model. However, both Auto ARIMA and Manual ARIMA are tested to determine a model with better accuracy, ACF and PACF results are examined to utilized manual ARIMA fitting. 
 
-* Weather data from 1996 to 2017 is used to build the model and 2032 Summer Olympics is 13 years away from now which is very distant from now. It is realized that the current model might not stay completely feasible for 2032 prediction and will require further data and model re-fitting in future. Although there is not a significant trend in the data now, it may develop a trend due to global climate change. In addition, it is possible that it can develop a strong correlation among different variables. 
+* Weather data from 1996 to 2017 is used to build the model, however, 2032 Summer Olympics is 13 years away from now which is very distant from now. It is realized that the current model might not stay completely feasible for 2032 prediction and will require further data and model re-fitting in future. Although there is not a significant trend in the data now, it may develop a trend due to global climate change. In addition, it is possible that it can develop a strong correlation among different variables. 
 
 * However, it is believed that there still is reasonable value in the built model. From Summer Olympics precedents, climate from past events can be compared to different months of the city, then when reasonable target months are decided, that information can further develop other economical and political case studies to test the hosting city's feasibility. 
 
-* ShinyAPP for this model is developed to generate predicted termperature and humidity value of future months. Maximum 240 months(20 years) prediction is possible, which covers up to year 2037, while 2032 is main focus. The predicted value can be seen in both table and graph format. In addition, it also enables users to review past temperature and humidity record by year and month so they can intuitively get understanding in the city's climate. While all 22 years' record is available, a slider control is available to shorten the range if certain period needs to be focused.   
-
-* We would suggest future analysis to combine with tags dataset. This will get genre information.
-
-* We would also suggest to get more information about user profiles such as age, education background, culture background etc. to do more deep analying as there are many factors in people's reading taste.
+* ShinyAPP for this model is developed to generate predicted termperature and humidity value of future months. Maximum 240 months(20 years) prediction is possible, which covers up to year 2037, while 2032 is main focus. The predicted value can be seen in both table and graph format. In addition, it also enables users to review past temperature and humidity record by year and month so they can intuitively get understanding in the city's climate. While all 22 years' record is available, a slider control is placed to shorten the range if certain period needs to be focused.   
 
 ## Project Codes
 
-All project codes and dataset are on [github](https://github.com/aiaihu/book-recommendation)
+All project codes and dataset are on [github](https://github.com/damnfastpig/time-series-assignment)
+[shinyapp](https://damnfastpig.shinyapps.io/delhiweather/)
