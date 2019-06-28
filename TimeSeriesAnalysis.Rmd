@@ -1,0 +1,660 @@
+---
+title: "TimeSeriesAnalysis"
+author: "Eugene Park, Aimin Amy Hu, Jacob Geeves"
+date: '2019-06-19'
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+# Backgroud
+While locations of 2020, 2024, and 2028 Summer Olympics are decided, (Tokyo, Paris, and Los Angeles in order), 2032’s location is not decided and its bidding process has not begun yet. Delhi is very serious in entering the bid, and in preparation, its committee wants to build a model that can predict weather to assess its feasibility. 
+
+# Weather, Climate and Prediction for the Olympic Games
+Baseline climatological information includes temperature, relative humidity, wind speed and direction, precipitation, and visibility. Several additional climatological elements for the summer games can include lightning, heat index, UV index, sea breeze, and ocean currents. While most climatological data is available from existing observation stations usually. 
+These are guidelines from World Meteorological Organization. 
+https://www.wmo.int/pages/prog/amp/pwsp/documents/PWS_Olympic_Guideline_Draft-Ver3.pdf
+
+# Objective
+Although its specific timing is unknown, as Summer Olympics took places between April and October in the past, being able to predict temperature and humidity of the city of New Delhi in such time frame will help plan the bid.  
+
+# Dataset
+There is a dataset available for past 20+ years weather on hourly basis for New Delhi, India. 
+https://www.kaggle.com/mahirkukreja/delhi-weather-data/downloads/delhi-weather-data.zip/2
+
+
+```{r, message=FALSE, warning=FALSE}
+#loading necessary libraries
+library('ggplot2')
+library('forecast')
+library('tseries')
+```
+# Data Exploration and Preparation 
+
+
+
+```{r}
+#loading in the dataset that consists of Delhi's daily weather for past 20 years
+data = read.csv('delhi.csv', header=TRUE, stringsAsFactors=FALSE)
+```
+
+## Data Exploration
+
+About the dataset: 100990 rows(observations) and 20 columns(variables)
+
+```{r}
+# check number of rows
+nrow(data)
+```
+
+```{r}
+# check number of columns
+ncol(data)
+```
+```{r}
+#check column names
+colnames(data)
+```
+## Missing values
+
+```{r}
+# summary of the dataset
+summary(data)
+```
+Missing Values
+
+Column Name    | Number of NA's   | % of NA's          |
+---------------|------------------|--------------------|
+  X_dewptm     |    621           |     .61%           |
+  X_heatindexm |    71835         |     71%            |                                  
+  X_precipm    |    100990        |     100%           |                         
+X_pressurem    |    232           |     .23%           |
+X_tempm        |    673           |    .66%            |
+X_vism         |    4428          |     4.4%           |
+X_wdird        |   14755          |   14.6%            |
+X_wgustm       |   99918          |   98.9%            |
+X_windchillm   |   100411         |   99.4%            |  
+X_wspdm        |   2358           |    2.33%           |
+
+#### Deal with some maximum numbers in variable X_tempm
+While temperature of the city (X_tempm) is #1 point of interest in this exercise, from summary of the dataset, we found maximum number is 90 in the variable X_tempm. We need to diagose if this number is correct or not?
+
+```{r}
+#find X_tempm == 90
+data[which(data$X_tempm ==90),]
+```
+In the temperature column, the temperature numbers were in Celsius. If we think 90 is in Celsius, this is not possible for a temperature in New Delhi. We checked other time on Jun 24 to see how tempeature look like
+
+```{r}
+#check other time temperature on Jun 24 in 2015
+data[which(data$datetime_utc =='20150624-06:00' ),]
+```
+After we checked the temperature on Jun 24 at 6:00am was 34 in this dataset, we decided that it was reasonable to assume that 90 was in Fahrenheit. Therefore, we changed it to Celsius which is 32 Celsius.
+```{r}
+# Change 90 Fahrenheit to 32 Celsius for Jun 24 at 3:00am
+data["91392" ,"X_tempm"] <- 32
+```
+```{r}
+# check if it is repalced?
+data[which(data$datetime_utc =="20150624-03:00"),]
+```
+```{r}
+#summary the X_tempm column to see if there are any numbers need to be dealt with
+summary(data$X_tempm)
+```
+```{r}
+#find X_tempm == 72
+data[which(data$X_tempm ==72),]
+```
+We assume that the 72 was also in Fahrenheit. We will convert it to Celsius which will be 22.
+
+```{r}
+# Change 72 Fahrenheit to 22 Celsius for Jun 24 at 3:00am
+data["11085" ,"X_tempm"] <- 22
+```
+```{r}
+# check if it is repalced?
+data[which(data$datetime_utc =="19981125-01:30"),]
+```
+```{r}
+#again summary the X_tempm column to see if there are any numbers need to be dealt with
+summary(data$X_tempm)
+```
+```{r}
+#find X_tempm == 63
+data[which(data$X_tempm == 63),]
+```
+The 63 could be a typo as temperature in May in New Delhi usually around 40 / 20(high/low). So we check other time on May 29 to see what the temperature recorded in the dataset. We found the temperature at 12:30 is 42, so we will replace the 63 by 42.
+```{r}
+#check other time temperature on May 29 in 1990
+data[which(data$datetime_utc =='19990529-12:30' ),]
+```
+```{r}
+# Change 63 to 42 for May 29 at 11:30 temperature in 1999
+data["12952" ,"X_tempm"] <- 42
+```
+```{r}
+# check if it is repalced?
+data[which(data$datetime_utc =="19990529-11:30"),]
+```
+```{r}
+#again summary the X_tempm column to see if there are any numbers need to be dealt with
+summary(data$X_tempm)
+```
+```{r}
+#find X_tempm == 62
+data[which(data$X_tempm ==62),]
+```
+```{r}
+#check other time temperature on Dec 31 in 2006
+data[which(data$datetime_utc =='20061231-03:00' ),]
+```
+```{r}
+data[which(data$datetime_utc =='20061231-09:00' ),]
+```
+After we checked one tempeature before and after 6:00AM, we belive the 62 was in Fahrenheit, therefore, we will change it to 17 in Celsius.
+
+```{r}
+# Change 62 Fahrenheit to 17 Celsius for Dec 31 at 6:00AM temperature in 2006
+data["68078" ,"X_tempm"] <- 17
+```
+
+```{r}
+#again summary the X_tempm column to see if there are any numbers need to be dealt with
+summary(data$X_tempm)
+```
+```{r, results='hide'}
+#find X_tempm == 47
+data[which(data$X_tempm ==47),]
+```
+We checked tempeature history of New Delhi online and found that these days show above had high tempearture around 47. Since there were more than 10 observations, we will assume that it is reasonale and proceed without further value adjustments. 
+
+## Deal with NA's in the variable X_tempm
+Replaceing Missing data: mean imputation method
+
+```{r}
+#save data as Mydata as back up
+Mydata <- data 
+```
+
+```{r}
+#get mean for X_tempm
+data_mean_repl <- mean(data$X_tempm,na.rm=TRUE)
+data_mean_repl
+```
+```{r}
+#Replaceing Missing data: mean imputation method(as we have already dealt with some numbers and ensure there are no outliers)
+data[is.na(data$X_tempm),"X_tempm"] <-data_mean_repl
+
+```
+
+```{r}
+# summary of X_tempm after replacemnet
+summary(data$X_tempm)
+```
+There is no more NA's.
+
+## Data Preparation - Subset dataset 
+
+##### Remove variable X_heatindexm, X_precipm, X_wgustm, X_windchillm due to the high percentage of NA's in these variables
+
+```{r, message=FALSE, warning=FALSE}
+# Remove variable X_heatindexm, X_precipm, X_wgustm, X_windchillm due to the high percentage of NA's in these variables.
+library(dplyr)
+data <- select(data, -c(X_heatindexm, X_precipm, X_wgustm, X_windchillm))
+
+```
+
+
+#### Subset dataset with only three variables:datetime_utc, X_hum and X_tempm.
+
+```{r}
+data <- select(data,datetime_utc, X_hum, X_tempm )
+```
+
+```{r}
+#noticing that humidity is set character. Converting it to integer. 
+data$X_hum <- as.integer(data$X_hum)
+class(data$X_hum)
+```
+```{r}
+summary(data)
+```
+When we convert the character to integer, NA's introduced by coercion. Therefore, we will need to deal NA's in variable X_hum. We also need to check if the maximum number 243 is reasonable number?
+
+#### Check the maximum number in X_hum
+```{r}
+#find X_hum == 243
+data[which(data$X_hum ==243),]
+```
+
+```{r}
+# check the X_hum before 3:00AM and after to determin if 243 is correct number or not
+data[which(data$datetime_utc =='20160607-02:00'),]
+```
+```{r}
+# check the X_hum before 3:00AM and after to determin if 243 is correct number or not
+data[which(data$datetime_utc =='20160607-04:00'),]
+```
+We also checked online at link: [https://www.wunderground.com/history/daily/in/new-delhi/VIDP/date/2016-6-7] 
+
+So the 243 is an error number. We will replace it with the number 55 which is from online.
+```{r}
+# Replace the 243 with 55 for 20160607-03:00 humidity
+data["95249" ,"X_hum"] <- 55
+```
+Summary the X_hum to see if all numbers make sense.
+
+```{r}
+summary(data$X_hum)
+
+```
+```{r}
+#find X_hum == 225
+data[which(data$X_hum ==225),]
+```
+```{r}
+# check the X_hum before 15:00 and after to determin if 225 is correct number or not
+data[which(data$datetime_utc =='20040929-12:00'),]
+```
+```{r}
+# check the X_hum before 15:00 and after to determin if 225 is correct number or not
+data[which(data$datetime_utc =='20040929-18:00'),]
+```
+We also checked online at link:
+[https://www.wunderground.com/history/daily/in/new-delhi/VIDP/date/2004-9-29]
+
+So the 225 is an error number. We will replace it with the number 43 which is from online.
+
+```{r}
+# Replace the 225 with 43 for 20040929-15:00 humidity
+data["61571" ,"X_hum"] <- 43
+```
+Summary the X_hum to see if all numbers make sense
+
+```{r}
+summary(data$X_hum)
+
+```
+```{r}
+#find X_hum == 135
+data[which(data$X_hum ==135),]
+```
+```{r}
+# check the X_hum before 21:00 and after to determin if 135 is correct number or not
+data[which(data$datetime_utc =='20081027-18:00'),]
+```
+There is no one after 21:00 on that day.
+We checked online at link:
+[https://www.wunderground.com/history/daily/in/new-delhi/VIDP/date/2008-10-27] and found the humidity number is 57 for 20081027-21:00.
+So, we will replace the 135 with 57.
+
+```{r}
+# Replace the 135 with 57 for 20081027-21:00 humidity
+data["73297" ,"X_hum"] <- 57
+```
+Summary the X_hum to see if all numbers make sense
+
+```{r}
+summary(data$X_hum)
+
+```
+Now we see the maximum humidity number is 100. Is it possible? Surprisingly, yes, the condition is known as supersaturation. At any given temperature and air pressure, a specific maximum amount of water vapor in the air will produce a relative humidity (RH) of 100 percent
+
+#### Deal with NA's in variable X_hum: Mean Imputation Method
+```{r}
+#get mean for X_hum
+data_mean_hum <- mean(data$X_hum,na.rm=TRUE)
+data_mean_hum
+```
+```{r}
+#Replaceing Missing data: mean imputation method(as we have already dealt with some numbers and ensure there are no outliers)
+data[is.na(data$X_hum),"X_hum"] <-data_mean_hum
+
+```
+
+```{r}
+# summary of X_hum after replacemnet
+summary(data$X_hum)
+```
+#### Deal with variable datetime_utc
+
+```{r, message=FALSE, warning=FALSE}
+#its original data column datetime_utc requires some cleaning
+#starting by splitting its date and time aspect
+library(data.table)
+setDT(data)[, paste0("type", 1:2) := tstrsplit(data$datetime_utc, "-")]
+```
+```{r}
+#checking data$type1(date splitted from original column) is character
+class(data$type1)
+```
+```{r, message=FALSE, warning=FALSE}
+#converting data$type1 to date format
+library("lubridate")
+data$date <- ymd(data$type1)
+class(data$date)
+```
+```{r}
+#extracting only columns needed for time series analysis
+#at the same time, it is noticed that not all dates have equal number of data points
+#some dates have 24 observations, some have less. 
+#for equally sparsed time points, data setss are being aggregated by date. Also changing its column name to 'date'
+
+head(data$date)
+tail(data$date)
+
+
+temp<- aggregate(data$X_tempm ~ data$date, data, mean )
+colnames(temp)=c("date", "temp")
+```
+
+
+# Build up model
+
+## Plots for temperature
+As time series analysis requires a series of equally disperse time points, the dataset is aggregated by date by mean, in order to have one observation per day. Then use ggplot to visualize the daily temperature data
+
+
+```{r}
+#examining the temperature data
+ggplot(temp, aes(date, temp)) + geom_line() + scale_x_date('daily')  + ylab("avg. temp") +
+  xlab("")
+```
+
+
+The new data set is plotted for review. The dataset seems pretty stationary with seasonality. 
+
+
+#### Decomposing the daily temperature time series
+
+Now, the dataset will be decomposed for further analysis. Not a significant trend exits but seasonality is definitely there. 
+
+```{r}
+#decomposing the temperature time series
+tstemp <-ts(temp$temp, frequency=365)
+decomp = stl(tstemp, s.window="periodic")
+plot(decomp)
+```
+
+
+#### Checking whether the dataset is stationary
+Now the dataset’s stationarity is being check to see whether this is suitable for ARIMA model. And the test results indicate that this is stationary. 
+
+
+
+```{r, message=FALSE, warning=FALSE}
+#checking whether the dataset is stationary
+adf.test(tstemp, alternative = "stationary")
+
+```
+
+##  Building an ARIMA model
+
+While running ACF and PACF to help find p, d, q value, it is noticed that there are too many observations in the dataset. 
+
+
+```{r}
+#start building an ARIMA model using auto.arima function
+Acf(tstemp, main='')
+```
+
+```{r}
+Pacf(tstemp, main='')
+```
+
+
+
+For now, an ARIMA model is being developed with auto. arima function with existing dateset and its result is being reviewed
+
+```{r}
+set.seed(123)
+fit <-auto.arima(tstemp, seasonal=TRUE)
+fit
+```
+
+```{r}
+tsdisplay(residuals(fit), lag.max=45, main='(2,0,1)(0,1,0) Model Residuals')
+```
+
+
+
+
+#### Forecast for next 3000 days
+```{r}
+fcast <- forecast(fit, h=3000)
+plot(fcast)
+```
+
+#### Aggregate the dataset to the monthly temperature time series
+Although previous model(daily) produces a reasonable model, it seems to have some readability issue in test results, in addition to computation time. We are aggregating the dataset to monthly mean to develop another model. 
+
+```{r}
+#now aggregating daily dataset into monthly avg. 
+short.date = strftime(temp$date, "%Y/%m")
+aggr.stat = aggregate(temp$temp ~ short.date, FUN = mean)
+colnames(aggr.stat)=c("date", "temp")
+```
+
+```{r}
+#monthly temperature: decomposing the temperature time series
+tstemp2 <-ts(aggr.stat$temp, frequency=12)
+decomp = stl(tstemp2, s.window="periodic")
+plot(decomp)
+```
+
+We notice that curves are smoother and the dataset is still more or less stationary. 
+
+```{r}
+#monthly temperature: checking whether the dataset is stationary
+adf.test(tstemp2, alternative = "stationary")
+```
+
+
+```{r}
+#monthly temperature: start building an ARIMA model using auto.arima function
+Acf(tstemp2, main='')
+```
+
+```{r}
+Pacf(tstemp2, main='')
+```
+
+
+For ACF and PACF tests, they are conceptually the same as daily dataset’s but gotten easier to read. 
+
+```{r}
+#monthly temperature: auto arima
+set.seed(123)
+fit <-auto.arima(tstemp2, seasonal=TRUE)
+fit
+```
+
+```{r}
+tsdisplay(residuals(fit), lag.max=45, main='(0,0,2)(0,1,1) Model Residuals')
+```
+
+```{r}
+# forecast for next 3 yrs
+fcast <- forecast(fit, h=36)
+plot(fcast)
+```
+
+
+Since there are lags over level of significance still being noticed, an ARIMA model with manual order will be tried to improve accuracy. 
+
+#### Monthly temperature: Manual ARIMA
+
+```{r}
+#monthly temperature: manual ARIMA
+fit <-arima(tstemp2, order=c(10, 0, 10), seasonal=list(order=c(0, 1, 1)))
+fit
+```
+
+```{r}
+tsdisplay(residuals(fit), lag.max=45, main='(10,0,10)(0,1,1) Model Residuals')
+```
+
+
+Since the model seems to have better accuracy, now the model is being tested for its forecast accuracy with actual value. For this, first 200 values are being used to train the model and remaining actual 45 values are being compared to forecast. 
+
+```{r, warning=FALSE}
+#testing the model
+hold <- window(ts(tstemp2), start=200)
+fit_no_hold <- arima(tstemp2[-c(200:245)], order=c(10, 0, 10), seasonal=list(order=c(0, 1, 1)))
+
+```
+
+
+```{r}
+fcast_no_hold <- forecast(fit_no_hold, h=45)
+plot(fcast_no_hold)
+lines(ts(tstemp2))
+```
+
+
+
+#### Build model for variable humidity
+Although it is more or less redundant, as humidity also plays a big role in Summer weather condition, another ARIMA model is being built for a humidity prediction model.
+
+```{r}
+#this is for humidity and changing its column names to something simpler
+hum<- aggregate(data$X_hum~ data$date, data, mean )
+colnames(hum)=c("date", "hum")
+```
+
+
+```{r}
+#examining the humidity data
+ggplot(hum, aes(date, hum)) + geom_line() + scale_x_date('daily')  + ylab("avg. humidity") +
+  xlab("")
+```
+
+
+```{r}
+#decomposing the humidity time series
+tshum <-ts(hum$hum, frequency=365)
+decomp = stl(tshum, s.window="periodic")
+plot(decomp)
+```
+
+```{r}
+#checking whether the dataset is stationary
+adf.test(tshum, alternative = "stationary")
+```
+
+```{r}
+plot(tshum)
+```
+
+
+```{r}
+#start building an ARIMA model using auto.arima function
+Acf(tshum, main='')
+```
+
+```{r}
+Pacf(tshum, main='')
+```
+
+
+```{r}
+#now aggregating daily dataset into monthly avg. since there are too many observations. 
+short.date = strftime(hum$date, "%Y/%m")
+aggr.stat = aggregate(hum$hum ~ short.date, FUN = mean)
+colnames(aggr.stat)=c("date", "hum")
+```
+
+
+```{r}
+
+#monthly humidity: decomposing the raine time series
+tshum2 <-ts(aggr.stat$hum, frequency=12)
+decomp = stl(tshum2, s.window="periodic")
+plot(decomp)
+```
+
+
+```{r}
+#monthly humidity: checking whether the dataset is stationary
+adf.test(tshum2, alternative = "stationary")
+```
+
+
+```{R}
+plot(tshum2)
+```
+
+```{r}
+#monthly humidity: start building an ARIMA model using auto.arima function
+Acf(tshum2, main='')
+```
+
+
+```{r}
+Pacf(tshum2, main='')
+```
+
+
+```{r}
+#monthly humidity: auto arima model and forecast plot
+fit <-auto.arima(tshum2, seasonal=TRUE)
+fit
+```
+
+```{r}
+tsdisplay(residuals(fit), lag.max=45, main='(2,0,1)(0,1,1) Model Residuals')
+
+```
+
+```{r}
+fcast <- forecast(fit, h=36)
+plot(fcast)
+```
+
+
+```{r, warning=FALSE}
+#monthly humidity: manual ARIMA
+fit <-arima(tshum2, order=c(11, 0, 11), seasonal=list(order=c(0, 1, 1)))
+fit
+```
+
+```{r}
+tsdisplay(residuals(fit), lag.max=45, main='(11,0,11)(0,0,1) Model Residuals')
+```
+
+```{r, warning=FALSE}
+#testing the model and forecast plot against actual data
+hold2 <- window(ts(tshum2), start=200)
+fit_no_hold2 <- arima(tshum2[-c(200:245)], order=c(11, 0, 11), seasonal=list(order=c(0, 1, 1)) )
+```
+
+```{r}
+
+fcast_no_hold2 <- forecast(fit_no_hold2, h=45)
+plot(fcast_no_hold2)
+lines(ts(tshum2))
+```
+
+##Deployment Discussion
+
+* Due to time contraint and lack of understanding in all of time series model algorithms, this project has only demonstrated the usage of ARIMA model. However, both Auto ARIMA and Manual ARIMA are tested  for improved accuracy, ACF and PACF results are examined to utilized manual ARIMA fitting. 
+
+* Weather data from 1996 to 2017 is used to build the model and 2032 Summer Olympics is 13 years away from now which is very distant from now. It is realized that the current model might not stay completely feasible for 2032 prediction and will require further data and model re-fitting in future. Although there is not a significant trend in the data now, it may develop a trend due to global climate change. In addition, it is possible that it can develop a strong correlation among different variables. 
+
+* However, it is believed that there still is reasonable value in the built model. From Summer Olympics precedents, climate from past events can be compared to different months of the city, then when reasonable target months are decided, that information can further develop other economical and political case studies to test the hosting city's feasibility. 
+
+* ShinyAPP for this model is developed to generate predicted termperature and humidity value of future months. Maximum 240 months(20 years) prediction is possible, which covers up to year 2037, while 2032 is main focus. The predicted value can be seen in both table and graph format. In addition, it also enables users to review past temperature and humidity record by year and month so they can intuitively get understanding in the city's climate. While all 22 years' record is available, a slider control is available to shorten the range if certain period needs to be focused.   
+
+* We would suggest future analysis to combine with tags dataset. This will get genre information.
+
+* We would also suggest to get more information about user profiles such as age, education background, culture background etc. to do more deep analying as there are many factors in people's reading taste.
+
+## Project Codes
+
+All project codes and dataset are on [github](https://github.com/aiaihu/book-recommendation)
